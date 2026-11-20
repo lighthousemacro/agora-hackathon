@@ -80,6 +80,17 @@ database**: spins a local chain, deploys, the market-creator agent reads the
 trades that move the crowd price away from fair value, then the oracle agent
 resolves a market on a real historical print and pays the winners in USDC.
 
+## Where this sits
+
+This repository is the public Pharos hackathon build. It is not the firm's daily system.
+
+| Repo | Role |
+| --- | --- |
+| [`lighthousemacro.github.io`](https://github.com/lighthousemacro/lighthousemacro.github.io) | Source for [lighthousemacro.com](https://lighthousemacro.com). This is the repo that changes on a publishing day. |
+| `LHM` (private) | Pipeline, Diagnostic Dozen, brand, and the working Pharos app under `Pharos/`. |
+| [`research-redirect`](https://github.com/lighthousemacro/research-redirect) | Redirect for [research.lighthousemacro.com](https://research.lighthousemacro.com). |
+| [`LighthouseMacro`](https://github.com/lighthousemacro/LighthouseMacro) | GitHub profile. Early notebooks live there. They are not this codebase. |
+
 ## Status
 
 See [`docs/ARCHITECTURE.md#build-status`](docs/ARCHITECTURE.md#build-status)
