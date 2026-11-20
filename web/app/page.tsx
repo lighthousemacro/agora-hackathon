@@ -1,13 +1,9 @@
-import MarketCard from "@/components/MarketCard";
-import FlagshipSpread from "@/components/FlagshipSpread";
+import LiveBook from "@/components/LiveBook";
 import { BOARD, SNAPSHOT_AS_OF, FACTORY, ARCSCAN } from "@/lib/snapshot";
 
 const GITHUB = "https://github.com/lighthousemacro/pharos";
 
 export default function Home() {
-  const flagship = BOARD.find((m) => m.tier === "edge") ?? BOARD[0];
-  const board = BOARD.filter((m) => m !== flagship);
-
   return (
     <main>
       {/* nav */}
@@ -70,11 +66,12 @@ export default function Home() {
           </div>
         </section>
 
-        {/* flagship */}
-        <section className="band">
-          <div className="kicker">The spread, live</div>
-          <FlagshipSpread m={flagship} />
-        </section>
+        <LiveBook
+          initial={BOARD}
+          asOf={SNAPSHOT_AS_OF}
+          factory={FACTORY}
+          arcscan={ARCSCAN}
+        />
 
         {/* value props */}
         <section className="band">
@@ -103,34 +100,6 @@ export default function Home() {
                 scale. Trust me becomes check it yourself.
               </p>
             </div>
-          </div>
-        </section>
-
-        {/* the board */}
-        <section className="band">
-          <div className="sec-head">
-            <div>
-              <div className="kicker">The board</div>
-              <h2>Graded by how much it trusts itself</h2>
-            </div>
-            <p className="note">
-              We only claim conviction where the model beats a naive baseline out
-              of sample. Everywhere else it says so, on the card.
-            </p>
-          </div>
-          <div className="grid">
-            {board.map((m, i) => (
-              <MarketCard key={m.market_address ?? `${m.kind}-${i}`} m={m} />
-            ))}
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <span className="banner">
-              <span className="dot" />
-              framework <b>snapshot {SNAPSHOT_AS_OF}</b>&nbsp;· 6 markets live on{" "}
-              <a href={`${ARCSCAN}/address/${FACTORY}`} target="_blank" rel="noopener noreferrer">
-                Arc testnet
-              </a>
-            </span>
           </div>
         </section>
 

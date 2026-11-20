@@ -100,10 +100,18 @@ def unscale_strike(scaled: int) -> float:
 
 
 # ----------------------------------------------------------------------
-#  2026 release schedule (reference month/period -> public release date)
+#  Release schedule (reference month/period -> public release date)
 # ----------------------------------------------------------------------
-# Encoded from the official BLS/BEA/Fed 2026 calendars. Verify before
-# mainnet. Each entry: (kind, reference label, resolve datetime UTC-ish).
+# Encoded from the official calendars. 8:30am ET prints are stored at
+# 13:30 and FOMC decisions at 19:00, matching the original 2026 entries
+# (standard time, not adjusted for daylight saving). Verify before mainnet.
+# Late-2026 and 2027 dates were read on 2026-11-20 from:
+#   https://www.bls.gov/schedule/news_release/cpi.htm
+#   https://www.bls.gov/schedule/news_release/empsit.htm
+#   https://www.bea.gov/news/schedule
+#   https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+# The Fed marks a meeting tentative until the meeting before it.
+# Each entry: (kind, reference label, resolve datetime).
 _SCHEDULE_2026 = [
     # CPI — Consumer Price Index (reference month -> release)
     ("CPI_MOM", "Apr 2026", datetime(2026, 5, 12, 13, 30)),
@@ -121,6 +129,45 @@ _SCHEDULE_2026 = [
     ("FOMC_CUT", "Jun 2026", datetime(2026, 6, 17, 19, 0)),
     ("FOMC_CUT", "Jul 2026", datetime(2026, 7, 29, 19, 0)),
     ("FOMC_CUT", "Sep 2026", datetime(2026, 9, 16, 19, 0)),
+    # Still ahead of 2026-11-20. October CPI (released Nov 10) and
+    # October payrolls (released Nov 6) are already past and omitted.
+    ("CPI_MOM", "Nov 2026", datetime(2026, 12, 10, 13, 30)),
+    ("CPI_MOM", "Dec 2026", datetime(2027, 1, 13, 13, 30)),
+    ("CPI_MOM", "Jan 2027", datetime(2027, 2, 11, 13, 30)),
+    ("CPI_MOM", "Feb 2027", datetime(2027, 3, 10, 13, 30)),
+    ("CPI_MOM", "Mar 2027", datetime(2027, 4, 13, 13, 30)),
+    ("CPI_MOM", "Apr 2027", datetime(2027, 5, 12, 13, 30)),
+    ("CPI_MOM", "May 2027", datetime(2027, 6, 10, 13, 30)),
+    ("CPI_MOM", "Jun 2027", datetime(2027, 7, 14, 13, 30)),
+    ("CPI_MOM", "Jul 2027", datetime(2027, 8, 11, 13, 30)),
+    ("CPI_MOM", "Aug 2027", datetime(2027, 9, 14, 13, 30)),
+    ("CPI_MOM", "Sep 2027", datetime(2027, 10, 14, 13, 30)),
+    ("CPI_MOM", "Oct 2027", datetime(2027, 11, 10, 13, 30)),
+    ("CPI_MOM", "Nov 2027", datetime(2027, 12, 10, 13, 30)),
+    ("NFP", "Nov 2026", datetime(2026, 12, 4, 13, 30)),
+    ("NFP", "Dec 2026", datetime(2027, 1, 8, 13, 30)),
+    ("NFP", "Jan 2027", datetime(2027, 2, 5, 13, 30)),
+    ("NFP", "Feb 2027", datetime(2027, 3, 5, 13, 30)),
+    ("NFP", "Mar 2027", datetime(2027, 4, 2, 13, 30)),
+    ("NFP", "Apr 2027", datetime(2027, 5, 7, 13, 30)),
+    ("NFP", "May 2027", datetime(2027, 6, 4, 13, 30)),
+    ("NFP", "Jun 2027", datetime(2027, 7, 2, 13, 30)),
+    ("NFP", "Jul 2027", datetime(2027, 8, 6, 13, 30)),
+    ("NFP", "Aug 2027", datetime(2027, 9, 3, 13, 30)),
+    ("NFP", "Sep 2027", datetime(2027, 10, 8, 13, 30)),
+    ("NFP", "Oct 2027", datetime(2027, 11, 5, 13, 30)),
+    ("NFP", "Nov 2027", datetime(2027, 12, 3, 13, 30)),
+    ("GDP", "Q3 2026 (2nd)", datetime(2026, 11, 25, 13, 30)),
+    ("GDP", "Q3 2026 (3rd)", datetime(2026, 12, 23, 13, 30)),
+    ("FOMC_CUT", "Dec 2026", datetime(2026, 12, 9, 19, 0)),
+    ("FOMC_CUT", "Jan 2027", datetime(2027, 1, 27, 19, 0)),
+    ("FOMC_CUT", "Mar 2027", datetime(2027, 3, 17, 19, 0)),
+    ("FOMC_CUT", "Apr 2027", datetime(2027, 4, 28, 19, 0)),
+    ("FOMC_CUT", "Jun 2027", datetime(2027, 6, 9, 19, 0)),
+    ("FOMC_CUT", "Jul 2027", datetime(2027, 7, 28, 19, 0)),
+    ("FOMC_CUT", "Sep 2027", datetime(2027, 9, 15, 19, 0)),
+    ("FOMC_CUT", "Oct 2027", datetime(2027, 10, 27, 19, 0)),
+    ("FOMC_CUT", "Nov 2027", datetime(2027, 11, 17, 19, 0)),
 ]
 
 

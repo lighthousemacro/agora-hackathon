@@ -88,6 +88,8 @@ a:hover { color: #6fd2ff; }
   background: rgba(0,187,137,0.08); padding: 5px 11px; border-radius: 999px;
 }
 .livepill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sea); box-shadow: 0 0 0 0 rgba(0,187,137,0.6); animation: pulse 2.4s infinite; }
+.livepill.stale { color: var(--doldrums); border-color: var(--line); background: transparent; }
+.livepill.stale .dot { background: var(--doldrums); animation: none; box-shadow: none; }
 @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(0,187,137,0.55)} 70%{box-shadow:0 0 0 7px rgba(0,187,137,0)} 100%{box-shadow:0 0 0 0 rgba(0,187,137,0)} }
 
 /* ── hero ──────────────────────────────────────────────── */
@@ -242,6 +244,7 @@ section.band { padding: 30px 0; }
 .pit { font-size: 10.5px; color: var(--doldrums); border-top: 1px solid var(--line); padding-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
 .pit b { color: var(--sky); }
 .resolved-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--navy); background: var(--sea); padding: 3px 8px; border-radius: 6px; }
+.due-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--navy); background: var(--dusk); padding: 3px 8px; border-radius: 6px; }
 
 /* ── how it works (the moat) ───────────────────────────── */
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }

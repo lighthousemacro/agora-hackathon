@@ -10,34 +10,59 @@ from FRED/BLS/BEA (real government data); it never fabricates a print.
 from __future__ import annotations
 
 import sys
-import time
+from datetime import datetime
 from pathlib import Path
+
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "pricing"))
 from pharos_pricing import calendar as cal  # noqa: E402
 from pharos_pricing import db  # noqa: E402
-from pharos_pricing.transforms import consistent_trend, diff_trend  # noqa: E402
+from pharos_pricing.transforms import consistent_trend, diff_trend, point_in_time  # noqa: E402
 
 from .chain import Chain  # noqa: E402
+from .schedule import should_resolve  # noqa: E402
 
 NO, YES = 0, 1
 
 
-def realized_value(kind: str) -> tuple[float, str]:
-    """Realized metric for `kind` from ingested government data."""
-    mk = cal.MARKET_KINDS[kind]
+def public_series(series: pd.Series, as_of: datetime, lag_days: int) -> pd.Series:
+    """Observations that were already public at `as_of`.
+
+    A resolve that runs late still grades the release it was written for.
+    Later prints stay out of the outcome.
+    """
+    visible = point_in_time(series, pd.Timestamp(as_of), lag_days)
+    if visible.empty:
+        raise ValueError(f"nothing public by {as_of.date()}")
+    return visible
+
+
+def _series(series_id: str, as_of: datetime | None) -> pd.Series:
+    raw = db.observation_series(series_id)
+    if as_of is None:
+        return raw
+    return public_series(raw, as_of, db.pub_lag_days(series_id))
+
+
+def realized_value(kind: str, as_of: datetime | None = None) -> tuple[float, str]:
+    """Realized metric for `kind` from ingested government data.
+
+    ``as_of`` is the market's release time. Passing it keeps a catch-up
+    resolve on the print that was public then.
+    """
     if kind == "CPI_MOM":
-        s = consistent_trend(db.observation_series("CPIAUCSL"), 3, 6)
+        s = consistent_trend(_series("CPIAUCSL", as_of), 3, 6)
         return float(s.iloc[-1]), s.index[-1].strftime("%Y-%m-%d")
     if kind == "NFP":
-        s = diff_trend(db.observation_series("PAYEMS"), 3, 6)
+        s = diff_trend(_series("PAYEMS", as_of), 3, 6)
         return float(s.iloc[-1]), s.index[-1].strftime("%Y-%m-%d")
     if kind == "GDP":
-        s = db.observation_series("A191RL1Q225SBEA")
+        s = _series("A191RL1Q225SBEA", as_of)
         val = 0.6 * float(s.iloc[-1]) + 0.4 * float(s.iloc[-2])
         return val, s.index[-1].strftime("%Y-%m-%d")
     if kind == "FOMC_CUT":
-        s = db.observation_series("DFEDTARU")
+        s = _series("DFEDTARU", as_of)
         now_rate = float(s.iloc[-1])
         prior = float(s.iloc[-22]) if len(s) > 22 else float(s.iloc[0])
         cut_bps = (prior - now_rate) * 100.0
@@ -54,18 +79,17 @@ def resolve_due(chain: Chain, force: bool = False) -> int:
     for addr in factory.functions.allMarkets().call():
         m = chain.market(addr)
         _, _, _, _, _, resolved, _ = m.functions.snapshot().call()
-        if resolved:
-            continue
         resolve_time = m.functions.resolveTime().call()
-        if not force and now < resolve_time:
-            remaining = resolve_time - now
-            print(f"  pending {addr} ({remaining}s to resolve time)")
+        if not should_resolve(now, resolve_time, resolved, force):
+            if not resolved:
+                remaining = resolve_time - now
+                print(f"  pending {addr} ({remaining}s to resolve time)")
             continue
 
         kind = m.functions.resolverKind().call()
         strike = m.functions.strikeScaled().call() / cal.STRIKE_SCALE
         try:
-            value, asof = realized_value(kind)
+            value, asof = realized_value(kind, datetime.fromtimestamp(resolve_time))
         except Exception as e:  # noqa: BLE001
             print(f"  skip {addr}: {e}")
             continue

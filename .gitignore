@@ -6,6 +6,7 @@ contracts/typechain-types/
 web/.next/
 web/node_modules/
 web/out/
+web/tsconfig.tsbuildinfo
 
 # Python
 __pycache__/

@@ -95,17 +95,23 @@ own framework and data.
 * `oracle` — after the release time (measured against chain time, the same
   clock the contract enforces), computes the realized outcome with the *same
   transform* used to price the market and resolves it.
-* `runner` — `status / create / reprice / resolve / once / demo-market /
-  trade / fastforward`.
+* `runner` — `status / create / reprice / resolve / sync / watch /
+  demo-market / trade / fastforward`. `sync` (and `once`) is one pass:
+  open anything inside the lead window, reprice each open market against
+  its own print, resolve whatever the chain clock has reached, settle the
+  creator's residual. `watch` runs that pass immediately and then on
+  `PHAROS_SYNC_INTERVAL` (default 30s). The board reads those chain values
+  itself, so a rebuild is not required for the prices to move.
 
 ### 4. Front-end — `web/` (Next.js 14, LHM 23/89/BB palette)
 
 A market grid where each card shows the crowd price and the framework price on
 one gauge, the edge in percentage points, the framework's reasoning, the
 signal-quality chips (IC, balanced accuracy, n, conviction), and the
-point-in-time stamp. `/api/markets` proxies the pricing service and falls back
-to a clearly-labelled cached sample (real captured values) if the service is
-down, so the UI always demos.
+point-in-time stamp. The page reads the factory every few seconds for the
+crowd price, the posted framework price, and resolution. `web/lib/snapshot.ts`
+is the model writeup and the fallback when that read fails; `make snapshot`
+rebakes it when the model itself moves.
 
 ## Renaming
 
@@ -121,7 +127,7 @@ refactor. Flagged for Bob's call.
 |---|---|
 | Contracts | ✅ compile, 6/6 tests incl. provable solvency |
 | Pricing moat | ✅ live against Lighthouse_Master.db, methodology validated |
-| Agents | ✅ create / reprice / resolve, full e2e on a local chain |
+| Agents | ✅ create / reprice / resolve / settle, `make watch` keeps the book current |
 | Pricing API | ✅ FastAPI on :6910, TTL-cached |
 | Front-end | ✅ builds, serves, live data, brand-themed |
 | End-to-end | ✅ `make demo` — 6 markets opened at framework prices, a crowd trade opens a +33pp edge, oracle resolves on real CPI data |
@@ -135,6 +141,7 @@ make setup     # deps + compile
 make test      # solidity suite (incl. solvency invariant)
 make price     # framework prices vs the live DB
 make demo      # full end-to-end on a local chain
+make watch     # create / reprice / resolve / settle, first pass immediately
 make serve     # pricing API :6910      (then) cd web && npm run dev
 ```
 

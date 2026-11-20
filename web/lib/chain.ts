@@ -39,7 +39,7 @@ export const arc = defineChain({
 
 export const publicClient = createPublicClient({
   chain: arc,
-  transport: http(ARC_RPC),
+  transport: http(ARC_RPC, { timeout: 8_000, retryCount: 0 }),
 });
 
 // ---- Minimal ABIs (only what the app calls) -----------------------------
@@ -49,6 +49,7 @@ export const FACTORY_ABI = [
 
 export const MARKET_ABI = [
   { type: "function", name: "question", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "resolverKind", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
   { type: "function", name: "resolveTime", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
   { type: "function", name: "usdc", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "YES", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
@@ -95,6 +96,7 @@ export const ERC20_ABI = [
 export interface OnchainMarket {
   address: Address;
   question: string;
+  kind: string;
   crowdProb: number; // 0..1 from mktBps (the AMM-implied price)
   frameworkProb: number; // 0..1 from fwBps (the framework price, posted ON-CHAIN)
   collateral: number; // USDC liquidity in the market
@@ -125,14 +127,16 @@ export async function fetchOnchainMarkets(): Promise<OnchainMarket[]> {
   const rows = await Promise.all(
     addrs.map(async (address) => {
       try {
-        const [question, snap, rt] = await Promise.all([
+        const [question, kind, snap, rt] = await Promise.all([
           publicClient.readContract({ address, abi: MARKET_ABI, functionName: "question" }) as Promise<string>,
+          publicClient.readContract({ address, abi: MARKET_ABI, functionName: "resolverKind" }) as Promise<string>,
           publicClient.readContract({ address, abi: MARKET_ABI, functionName: "snapshot" }) as Promise<readonly [number, number, bigint, bigint, bigint, boolean, number]>,
           publicClient.readContract({ address, abi: MARKET_ABI, functionName: "resolveTime" }) as Promise<bigint>,
         ]);
         return {
           address,
           question,
+          kind,
           crowdProb: Number(snap[0]) / 10000,
           frameworkProb: Number(snap[1]) / 10000,
           collateral: Number(snap[2]) / 1e6,

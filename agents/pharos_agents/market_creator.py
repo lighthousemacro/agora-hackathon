@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -24,6 +23,12 @@ from pharos_pricing import calendar as cal  # noqa: E402
 from pharos_pricing.models import price_market  # noqa: E402
 
 from .chain import Chain  # noqa: E402
+from .schedule import (  # noqa: E402
+    ref_for_question,
+    reprice_threshold,
+    select_creates,
+    should_reprice,
+)
 
 
 def _key(market_key: str) -> bytes:
@@ -41,16 +46,20 @@ def create_market(
     resolve_dt: datetime,
     strike: float | None = None,
     seed_usdc: int | None = None,
-) -> str:
+) -> tuple[str, bool]:
+    """Open one market. Returns ``(address, created)``.
+
+    ``created`` is false when the calendar key is already on the factory,
+    so a sync pass can count real opens and leave the existing market alone.
+    """
     factory = chain.factory()
     market_key = f"{kind}:{ref_label}"
     existing = factory.functions.marketByKey(_key(market_key)).call()
     if int(existing, 16) != 0:
         print(f"  exists  {market_key} -> {existing}")
-        return existing
+        return existing, False
 
     quote = price_market(kind, strike, ref_label=ref_label)
-    mk = cal.MARKET_KINDS[kind]
     strike_scaled = quote["strike_scaled"]
     fw_bps = quote["framework_prob_bps"]
     resolve_ts = int(resolve_dt.timestamp())
@@ -78,26 +87,42 @@ def create_market(
         f"resolves {resolve_dt.isoformat()}\n"
         f"          {quote['reasoning']}"
     )
-    return addr
+    return addr, True
 
 
-def create_due(chain: Chain, lead_days: int = 14, within_days: int = 60) -> list[str]:
-    created = []
+def create_due(chain: Chain, lead_days: int = 14, within_days: int | None = None) -> int:
+    """Open every release inside the lead window. Returns how many were new.
+
+    The chain clock gates creation: a release the chain has already reached
+    would revert in the constructor, and one failure must not stop the rest
+    of the pass.
+    """
+    window = within_days if within_days is not None else max(lead_days, 60)
     now = datetime.now()
-    for ev in cal.upcoming(within_days=within_days):
-        days = (ev.resolve_dt - now).days
-        if days <= lead_days:
-            created.append(
-                create_market(chain, ev.kind, ev.ref_label, ev.resolve_dt)
-            )
-    if not created:
+    due = select_creates(now, chain.block_time(), lead_days, cal.upcoming(within_days=window))
+    created = 0
+    for ev in due:
+        try:
+            _addr, is_new = create_market(chain, ev.kind, ev.ref_label, ev.resolve_dt)
+        except Exception as e:  # noqa: BLE001
+            print(f"  skip {ev.market_key}: {e}")
+            continue
+        if is_new:
+            created += 1
+    if created == 0 and not due:
         print("  nothing due inside the lead window")
     return created
 
 
-def reprice_existing(chain: Chain) -> None:
-    """Re-post the framework probability on every open market."""
+def reprice_existing(chain: Chain) -> tuple[int, int]:
+    """Re-post the framework probability on every open market.
+
+    The quote is for the market's own reference print, not whatever the
+    calendar currently calls "next". Returns ``(rewritten, held)``.
+    """
+    threshold = reprice_threshold()
     factory = chain.factory()
+    rewritten = held = 0
     for addr in factory.functions.allMarkets().call():
         m = chain.market(addr)
         mkt_bps, fw_bps, _, _, _, resolved, _ = m.functions.snapshot().call()
@@ -105,14 +130,26 @@ def reprice_existing(chain: Chain) -> None:
             continue
         kind = m.functions.resolverKind().call()
         strike = m.functions.strikeScaled().call() / cal.STRIKE_SCALE
+        question = m.functions.question().call()
+        ref = ref_for_question(kind, question, strike)
         try:
-            quote = price_market(kind, strike, ref_label="next")
+            quote = price_market(kind, strike, ref_label=ref)
         except Exception as e:  # noqa: BLE001
             print(f"  skip {addr}: {e}")
             continue
         new_bps = quote["framework_prob_bps"]
-        if abs(new_bps - fw_bps) >= 25:  # only write on a real move
-            chain.send(m.functions.updateFrameworkProb(new_bps))
-            print(f"  repriced {kind:<9} {fw_bps/100:.1f}% -> {new_bps/100:.1f}%")
+        if should_reprice(fw_bps, new_bps, threshold):
+            try:
+                chain.send(m.functions.updateFrameworkProb(new_bps))
+            except Exception as e:  # noqa: BLE001
+                print(f"  skip {addr}: {e}")
+                continue
+            rewritten += 1
+            print(
+                f"  repriced {kind:<9} {ref:<16} "
+                f"{fw_bps/100:.1f}% -> {new_bps/100:.1f}%"
+            )
         else:
-            print(f"  hold     {kind:<9} {fw_bps/100:.1f}% (mkt {mkt_bps/100:.1f}%)")
+            held += 1
+            print(f"  hold     {kind:<9} {ref:<16} {fw_bps/100:.1f}% (mkt {mkt_bps/100:.1f}%)")
+    return rewritten, held

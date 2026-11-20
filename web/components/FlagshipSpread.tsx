@@ -1,6 +1,7 @@
 import { Market } from "@/lib/types";
 import ChainCTA from "@/components/ChainCTA";
 import { pillarName } from "@/lib/labels";
+import { releasePassed } from "@/lib/merge";
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const clamp = (x: number) => Math.max(4, Math.min(96, x));
@@ -12,6 +13,7 @@ const dateShort = (s?: string) =>
 // in one picture — two numbers, and the gap is the product.
 export default function FlagshipSpread({ m }: { m: Market }) {
   const fw = m.framework_prob;
+  const awaiting = releasePassed(m);
   const live = Boolean(m.on_chain && m.market_address);
   const crowd = m.crowd_prob ?? 0.5; // seed price until the crowd trades
   const edge = (fw - crowd) * 100;
@@ -32,9 +34,9 @@ export default function FlagshipSpread({ m }: { m: Market }) {
         <span className="flagship-tag">
           ◆ Flagship market · {live ? "live on Arc testnet" : "framework quote"}
         </span>
-        <span className="livepill">
+        <span className={`livepill${m.resolved || awaiting ? " stale" : ""}`}>
           <span className="dot" />
-          {live ? "on-chain" : "framework"}
+          {m.resolved ? "resolved" : awaiting ? "awaiting oracle" : live ? "on-chain" : "framework"}
         </span>
       </div>
 
