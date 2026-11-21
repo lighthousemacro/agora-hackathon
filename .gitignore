@@ -30,3 +30,4 @@ deployments/localhost.json
 # Logs
 *.log
 logs/
+.pharos-tx.lock

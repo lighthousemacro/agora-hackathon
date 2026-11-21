@@ -34,7 +34,7 @@ export default function MarketCard({ m }: { m: Market }) {
 
   const fw = m.framework_prob;
   const live = Boolean(m.on_chain && m.market_address);
-  const crowd = live ? m.crowd_prob ?? 0.5 : null;
+  const crowd = m.prices_live && live ? (m.crowd_prob ?? 0.5) : null;
   const edge = crowd !== null ? (fw - crowd) * 100 : null;
   const lo = crowd !== null ? Math.min(crowd, fw) : fw;
   const hi = crowd !== null ? Math.max(crowd, fw) : fw;

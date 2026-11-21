@@ -1,27 +1,65 @@
-"""A late resolve still uses the print that was public at the release."""
+"""Resolution stays on the market's own period."""
 from __future__ import annotations
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 import pandas as pd
 
-from pharos_agents.oracle import public_series
+from pharos_agents.oracle import (
+    history_through,
+    later_gdp_estimate_released,
+    realized_value,
+)
 
 
-class PublicSeriesTests(unittest.TestCase):
-    def test_a_later_print_does_not_enter_a_catch_up_resolve(self):
-        # April CPI is labelled 2026-04-01 and is public ~41 days later.
-        series = pd.Series(
-            [100.0, 200.0],
-            index=pd.to_datetime(["2026-04-01", "2026-05-01"]),
-        )
-        at_release = public_series(series, datetime(2026, 5, 12), lag_days=41)
-        self.assertEqual(list(at_release.values), [100.0])
-        # Graded later, the May print is public. A catch-up resolve passes the
-        # original release time, so it still sees only the April print.
-        later = public_series(series, datetime(2026, 6, 20), lag_days=41)
-        self.assertEqual(list(later.values), [100.0, 200.0])
+def _cpi() -> pd.Series:
+    # Enough months for a 3/6 trend, plus a later month that must not grade May.
+    idx = pd.date_range("2024-01-01", periods=18, freq="MS")
+    values = [300 + i for i in range(18)]
+    values[-1] = 999  # 2025-06-01, standing in as a later print
+    # Rebuild so May 2026 is present and June 2026 is the later print.
+    idx = pd.date_range("2025-01-01", periods=18, freq="MS")
+    values = [320 + i * 0.4 for i in range(17)] + [999.0]
+    return pd.Series(values, index=idx)
+
+
+class HistoryTests(unittest.TestCase):
+    def test_history_stops_at_the_reference_period(self):
+        series = _cpi()
+        may = pd.Timestamp("2026-05-01")
+        cut = history_through(series, may)
+        self.assertEqual(cut.index[-1], may)
+        self.assertNotIn(pd.Timestamp("2026-06-01"), cut.index)
+
+    def test_a_missing_print_is_not_graded(self):
+        series = _cpi().iloc[:-2]  # drops May and June 2026
+        with self.assertRaises(ValueError):
+            history_through(series, pd.Timestamp("2026-05-01"))
+
+    def test_realized_value_uses_the_reference_period_not_the_latest_print(self):
+        series = _cpi()
+
+        def observation_series(series_id: str) -> pd.Series:
+            self.assertEqual(series_id, "CPIAUCSL")
+            return series
+
+        with patch("pharos_agents.oracle.db.observation_series", observation_series):
+            value, asof = realized_value(
+                "CPI_MOM",
+                datetime(2026, 11, 20, tzinfo=timezone.utc),
+                "May 2026",
+            )
+        self.assertEqual(asof, "2026-05-01")
+        self.assertNotEqual(value, 999.0)
+
+    def test_a_later_gdp_estimate_blocks_the_earlier_one(self):
+        # Q3 third estimate is 23 Dec 2026, 8:30am ET.
+        after = int(datetime(2026, 12, 23, 18, 0, tzinfo=timezone.utc).timestamp())
+        before = int(datetime(2026, 12, 1, tzinfo=timezone.utc).timestamp())
+        self.assertFalse(later_gdp_estimate_released("Q3 2026 (2nd)", before))
+        self.assertTrue(later_gdp_estimate_released("Q3 2026 (2nd)", after))
 
 
 if __name__ == "__main__":

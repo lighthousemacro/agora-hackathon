@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pharos_pricing import calendar as cal
 
@@ -143,20 +143,34 @@ class PassTests(unittest.TestCase):
             if calls["n"] == 1:
                 raise RuntimeError("rpc down")
 
-        slept: list[float] = []
+        order: list[str] = []
+
+        def step():
+            order.append("step")
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("rpc down")
+
+        def sleep(seconds: float):
+            order.append(f"sleep:{seconds}")
+
         passes = watch_loop(
             step,
-            interval=0,
-            sleep=slept.append,
+            interval=0.3,
+            sleep=sleep,
             stop=lambda: False,
             max_passes=2,
         )
         self.assertEqual(passes, 2)
         self.assertEqual(calls["n"], 2)
-        self.assertEqual(slept, [])
+        self.assertEqual(order[0], "step")
+        sleeps = [item for item in order if item.startswith("sleep:")]
+        self.assertTrue(sleeps)
+        self.assertTrue(all(float(item.split(":")[1]) <= 0.25 for item in sleeps))
 
-    def test_watch_stops_during_the_wait(self):
+    def test_watch_stops_between_wait_slices(self):
         calls = {"n": 0, "asleep": False}
+        slept: list[float] = []
 
         def step():
             calls["n"] += 1
@@ -164,12 +178,42 @@ class PassTests(unittest.TestCase):
         def stop():
             return calls["asleep"]
 
-        def sleep(_seconds):
+        def sleep(seconds: float):
+            slept.append(seconds)
+            self.assertLessEqual(seconds, 0.25)
             calls["asleep"] = True
 
         passes = watch_loop(step, interval=30, sleep=sleep, stop=stop)
         self.assertEqual(calls["n"], 1)
         self.assertEqual(passes, 1)
+        self.assertEqual(slept, [0.25])
+
+
+class ClockTests(unittest.TestCase):
+    def test_a_summer_release_is_eight_thirty_eastern(self):
+        ev = _event("CPI_MOM", "Jun 2026")  # released 14 Jul 2026, during daylight time
+        utc = ev.resolve_dt.astimezone(timezone.utc)
+        self.assertEqual((utc.hour, utc.minute), (12, 30))
+
+    def test_a_winter_release_is_eight_thirty_eastern(self):
+        ev = _event("CPI_MOM", "Nov 2026")  # released 10 Dec 2026, standard time
+        utc = ev.resolve_dt.astimezone(timezone.utc)
+        self.assertEqual((utc.hour, utc.minute), (13, 30))
+
+    def test_a_bad_reprice_setting_does_not_raise(self):
+        import os
+
+        from pharos_agents.schedule import reprice_threshold
+
+        previous = os.environ.get("PHAROS_REPRICE_BPS")
+        os.environ["PHAROS_REPRICE_BPS"] = "nope"
+        try:
+            self.assertEqual(reprice_threshold(), 25)
+        finally:
+            if previous is None:
+                os.environ.pop("PHAROS_REPRICE_BPS", None)
+            else:
+                os.environ["PHAROS_REPRICE_BPS"] = previous
 
 
 class SummaryTests(unittest.TestCase):

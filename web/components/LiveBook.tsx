@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import FlagshipSpread from "@/components/FlagshipSpread";
 import MarketCard from "@/components/MarketCard";
-import { fetchOnchainMarkets } from "@/lib/chain";
+import { fetchOnchainMarkets, type Address } from "@/lib/chain";
 import { CHAIN_POLL_MS, mergeBoard } from "@/lib/merge";
 import type { Market } from "@/lib/types";
 
@@ -29,7 +29,9 @@ export default function LiveBook({
   factory: string;
   arcscan: string;
 }) {
-  const [markets, setMarkets] = useState(initial);
+  const [markets, setMarkets] = useState<Market[]>(() =>
+    initial.map((m) => ({ ...m, prices_live: false })),
+  );
   const [state, setState] = useState<SyncState>("reading");
   const [syncedAt, setSyncedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -42,7 +44,7 @@ export default function LiveBook({
       if (inflight) return;
       inflight = true;
       try {
-        const rows = await fetchOnchainMarkets();
+        const rows = await fetchOnchainMarkets(factory as Address);
         if (stop) return;
         setMarkets(mergeBoard(initial, rows));
         setSyncedAt(Date.now());
@@ -68,7 +70,7 @@ export default function LiveBook({
       clearInterval(clock);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [initial]);
+  }, [initial, factory]);
 
   const flagship = markets.find((m) => m.tier === "edge") ?? markets[0];
   const board = markets.filter((m) => m !== flagship);

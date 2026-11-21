@@ -164,10 +164,14 @@ def _quotes() -> list[dict]:
 
 
 def _chain_rows(network: str | None) -> list[dict]:
+    # The baked file is the Arc board. A localhost node must not paint its
+    # prices onto that page.
+    if (network or "arc") != "arc":
+        return []
     try:
         from .chain import Chain
 
-        chain = Chain(network=network)
+        chain = Chain(network="arc")
     except Exception:  # noqa: BLE001 — a bake still ships the model writeup
         return []
     rows = []

@@ -21,19 +21,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "pricing"))
 from pharos_pricing import calendar as cal  # noqa: E402
 
 
+def _env_number(name: str, default: float, cast):
+    """Read a numeric setting. A bad value is reported and does not stop the pass."""
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return cast(default)
+    try:
+        return cast(str(raw).strip())
+    except ValueError:
+        print(f"{name}={raw!r} is not a number; using {default}", flush=True)
+        return cast(default)
+
+
 def lead_days() -> int:
     """How far ahead of a release a market should already be open."""
-    return int(os.environ.get("PHAROS_LEAD_DAYS", "14"))
+    return _env_number("PHAROS_LEAD_DAYS", 14, int)
 
 
 def sync_interval() -> float:
     """Seconds between watch passes. The first pass does not wait."""
-    return float(os.environ.get("PHAROS_SYNC_INTERVAL", "30"))
+    return _env_number("PHAROS_SYNC_INTERVAL", 30, float)
 
 
 def reprice_threshold() -> int:
     """Minimum framework move, in basis points, that is worth a chain write."""
-    return int(os.environ.get("PHAROS_REPRICE_BPS", "25"))
+    return max(0, _env_number("PHAROS_REPRICE_BPS", 25, int))
 
 
 def ref_for_question(kind: str, question: str, strike: float) -> str:
@@ -72,10 +84,12 @@ def select_creates(
     owns it. ``lead`` is in days, matching the calendar the creator posts.
     """
     due: list[cal.ReleaseEvent] = []
+    now_utc = cal.as_utc(now)
     for ev in events:
-        if int(ev.resolve_dt.timestamp()) <= chain_now:
+        release = cal.as_utc(ev.resolve_dt)
+        if int(release.timestamp()) <= chain_now:
             continue
-        days_out = (ev.resolve_dt - now).days
+        days_out = (release - now_utc).days
         if 0 <= days_out <= lead:
             due.append(ev)
     return due

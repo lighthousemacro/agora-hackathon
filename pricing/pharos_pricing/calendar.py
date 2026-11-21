@@ -15,7 +15,8 @@ import it so a strike means the same integer everywhere.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 # Strike, and any human macro value, is stored on-chain as int(value * 1e6).
 STRIKE_SCALE = 1_000_000
@@ -102,9 +103,9 @@ def unscale_strike(scaled: int) -> float:
 # ----------------------------------------------------------------------
 #  Release schedule (reference month/period -> public release date)
 # ----------------------------------------------------------------------
-# Encoded from the official calendars. 8:30am ET prints are stored at
-# 13:30 and FOMC decisions at 19:00, matching the original 2026 entries
-# (standard time, not adjusted for daylight saving). Verify before mainnet.
+# Encoded from the official calendars. Prints are 8:30am America/New_York
+# and FOMC decisions are 2:00pm America/New_York, so daylight time does
+# not shift the chain timestamp. Verify before mainnet.
 # Late-2026 and 2027 dates were read on 2026-11-20 from:
 #   https://www.bls.gov/schedule/news_release/cpi.htm
 #   https://www.bls.gov/schedule/news_release/empsit.htm
@@ -112,62 +113,80 @@ def unscale_strike(scaled: int) -> float:
 #   https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
 # The Fed marks a meeting tentative until the meeting before it.
 # Each entry: (kind, reference label, resolve datetime).
+ET = ZoneInfo("America/New_York")
+
+
+def at_et(year: int, month: int, day: int, hour: int, minute: int) -> datetime:
+    """A release instant in Eastern time, including daylight time."""
+    return datetime(year, month, day, hour, minute, tzinfo=ET)
+
+
+def as_utc(dt: datetime) -> datetime:
+    """Absolute time. Naive values are UTC, which is how tests and the chain clock are written."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 _SCHEDULE_2026 = [
     # CPI — Consumer Price Index (reference month -> release)
-    ("CPI_MOM", "Apr 2026", datetime(2026, 5, 12, 13, 30)),
-    ("CPI_MOM", "May 2026", datetime(2026, 6, 10, 13, 30)),
-    ("CPI_MOM", "Jun 2026", datetime(2026, 7, 14, 13, 30)),
-    ("CPI_MOM", "Jul 2026", datetime(2026, 8, 12, 13, 30)),
+    ("CPI_MOM", "Apr 2026", at_et(2026, 5, 12, 8, 30)),
+    ("CPI_MOM", "May 2026", at_et(2026, 6, 10, 8, 30)),
+    ("CPI_MOM", "Jun 2026", at_et(2026, 7, 14, 8, 30)),
+    ("CPI_MOM", "Jul 2026", at_et(2026, 8, 12, 8, 30)),
     # Employment Situation — Nonfarm Payrolls
-    ("NFP", "May 2026", datetime(2026, 6, 5, 13, 30)),
-    ("NFP", "Jun 2026", datetime(2026, 7, 2, 13, 30)),
-    ("NFP", "Jul 2026", datetime(2026, 8, 7, 13, 30)),
+    ("NFP", "May 2026", at_et(2026, 6, 5, 8, 30)),
+    ("NFP", "Jun 2026", at_et(2026, 7, 2, 8, 30)),
+    ("NFP", "Jul 2026", at_et(2026, 8, 7, 8, 30)),
     # GDP — BEA estimates
-    ("GDP", "Q1 2026 (2nd)", datetime(2026, 5, 28, 13, 30)),
-    ("GDP", "Q2 2026 (adv)", datetime(2026, 7, 30, 13, 30)),
+    ("GDP", "Q1 2026 (2nd)", at_et(2026, 5, 28, 8, 30)),
+    ("GDP", "Q2 2026 (adv)", at_et(2026, 7, 30, 8, 30)),
     # FOMC meeting decisions (2026 schedule)
-    ("FOMC_CUT", "Jun 2026", datetime(2026, 6, 17, 19, 0)),
-    ("FOMC_CUT", "Jul 2026", datetime(2026, 7, 29, 19, 0)),
-    ("FOMC_CUT", "Sep 2026", datetime(2026, 9, 16, 19, 0)),
+    ("FOMC_CUT", "Jun 2026", at_et(2026, 6, 17, 14, 0)),
+    ("FOMC_CUT", "Jul 2026", at_et(2026, 7, 29, 14, 0)),
+    ("FOMC_CUT", "Sep 2026", at_et(2026, 9, 16, 14, 0)),
     # Still ahead of 2026-11-20. October CPI (released Nov 10) and
     # October payrolls (released Nov 6) are already past and omitted.
-    ("CPI_MOM", "Nov 2026", datetime(2026, 12, 10, 13, 30)),
-    ("CPI_MOM", "Dec 2026", datetime(2027, 1, 13, 13, 30)),
-    ("CPI_MOM", "Jan 2027", datetime(2027, 2, 11, 13, 30)),
-    ("CPI_MOM", "Feb 2027", datetime(2027, 3, 10, 13, 30)),
-    ("CPI_MOM", "Mar 2027", datetime(2027, 4, 13, 13, 30)),
-    ("CPI_MOM", "Apr 2027", datetime(2027, 5, 12, 13, 30)),
-    ("CPI_MOM", "May 2027", datetime(2027, 6, 10, 13, 30)),
-    ("CPI_MOM", "Jun 2027", datetime(2027, 7, 14, 13, 30)),
-    ("CPI_MOM", "Jul 2027", datetime(2027, 8, 11, 13, 30)),
-    ("CPI_MOM", "Aug 2027", datetime(2027, 9, 14, 13, 30)),
-    ("CPI_MOM", "Sep 2027", datetime(2027, 10, 14, 13, 30)),
-    ("CPI_MOM", "Oct 2027", datetime(2027, 11, 10, 13, 30)),
-    ("CPI_MOM", "Nov 2027", datetime(2027, 12, 10, 13, 30)),
-    ("NFP", "Nov 2026", datetime(2026, 12, 4, 13, 30)),
-    ("NFP", "Dec 2026", datetime(2027, 1, 8, 13, 30)),
-    ("NFP", "Jan 2027", datetime(2027, 2, 5, 13, 30)),
-    ("NFP", "Feb 2027", datetime(2027, 3, 5, 13, 30)),
-    ("NFP", "Mar 2027", datetime(2027, 4, 2, 13, 30)),
-    ("NFP", "Apr 2027", datetime(2027, 5, 7, 13, 30)),
-    ("NFP", "May 2027", datetime(2027, 6, 4, 13, 30)),
-    ("NFP", "Jun 2027", datetime(2027, 7, 2, 13, 30)),
-    ("NFP", "Jul 2027", datetime(2027, 8, 6, 13, 30)),
-    ("NFP", "Aug 2027", datetime(2027, 9, 3, 13, 30)),
-    ("NFP", "Sep 2027", datetime(2027, 10, 8, 13, 30)),
-    ("NFP", "Oct 2027", datetime(2027, 11, 5, 13, 30)),
-    ("NFP", "Nov 2027", datetime(2027, 12, 3, 13, 30)),
-    ("GDP", "Q3 2026 (2nd)", datetime(2026, 11, 25, 13, 30)),
-    ("GDP", "Q3 2026 (3rd)", datetime(2026, 12, 23, 13, 30)),
-    ("FOMC_CUT", "Dec 2026", datetime(2026, 12, 9, 19, 0)),
-    ("FOMC_CUT", "Jan 2027", datetime(2027, 1, 27, 19, 0)),
-    ("FOMC_CUT", "Mar 2027", datetime(2027, 3, 17, 19, 0)),
-    ("FOMC_CUT", "Apr 2027", datetime(2027, 4, 28, 19, 0)),
-    ("FOMC_CUT", "Jun 2027", datetime(2027, 6, 9, 19, 0)),
-    ("FOMC_CUT", "Jul 2027", datetime(2027, 7, 28, 19, 0)),
-    ("FOMC_CUT", "Sep 2027", datetime(2027, 9, 15, 19, 0)),
-    ("FOMC_CUT", "Oct 2027", datetime(2027, 10, 27, 19, 0)),
-    ("FOMC_CUT", "Nov 2027", datetime(2027, 11, 17, 19, 0)),
+    ("CPI_MOM", "Nov 2026", at_et(2026, 12, 10, 8, 30)),
+    ("CPI_MOM", "Dec 2026", at_et(2027, 1, 13, 8, 30)),
+    ("CPI_MOM", "Jan 2027", at_et(2027, 2, 11, 8, 30)),
+    ("CPI_MOM", "Feb 2027", at_et(2027, 3, 10, 8, 30)),
+    ("CPI_MOM", "Mar 2027", at_et(2027, 4, 13, 8, 30)),
+    ("CPI_MOM", "Apr 2027", at_et(2027, 5, 12, 8, 30)),
+    ("CPI_MOM", "May 2027", at_et(2027, 6, 10, 8, 30)),
+    ("CPI_MOM", "Jun 2027", at_et(2027, 7, 14, 8, 30)),
+    ("CPI_MOM", "Jul 2027", at_et(2027, 8, 11, 8, 30)),
+    ("CPI_MOM", "Aug 2027", at_et(2027, 9, 14, 8, 30)),
+    ("CPI_MOM", "Sep 2027", at_et(2027, 10, 14, 8, 30)),
+    ("CPI_MOM", "Oct 2027", at_et(2027, 11, 10, 8, 30)),
+    ("CPI_MOM", "Nov 2027", at_et(2027, 12, 10, 8, 30)),
+    ("NFP", "Nov 2026", at_et(2026, 12, 4, 8, 30)),
+    ("NFP", "Dec 2026", at_et(2027, 1, 8, 8, 30)),
+    ("NFP", "Jan 2027", at_et(2027, 2, 5, 8, 30)),
+    ("NFP", "Feb 2027", at_et(2027, 3, 5, 8, 30)),
+    ("NFP", "Mar 2027", at_et(2027, 4, 2, 8, 30)),
+    ("NFP", "Apr 2027", at_et(2027, 5, 7, 8, 30)),
+    ("NFP", "May 2027", at_et(2027, 6, 4, 8, 30)),
+    ("NFP", "Jun 2027", at_et(2027, 7, 2, 8, 30)),
+    ("NFP", "Jul 2027", at_et(2027, 8, 6, 8, 30)),
+    ("NFP", "Aug 2027", at_et(2027, 9, 3, 8, 30)),
+    ("NFP", "Sep 2027", at_et(2027, 10, 8, 8, 30)),
+    ("NFP", "Oct 2027", at_et(2027, 11, 5, 8, 30)),
+    ("NFP", "Nov 2027", at_et(2027, 12, 3, 8, 30)),
+    # BEA's public schedule on 2026-11-20 listed GDP through this third
+    # estimate and no 2027 GDP dates. The Fed's 2027 calendar lists
+    # November 16-17 and does not list a December meeting.
+    ("GDP", "Q3 2026 (2nd)", at_et(2026, 11, 25, 8, 30)),
+    ("GDP", "Q3 2026 (3rd)", at_et(2026, 12, 23, 8, 30)),
+    ("FOMC_CUT", "Dec 2026", at_et(2026, 12, 9, 14, 0)),
+    ("FOMC_CUT", "Jan 2027", at_et(2027, 1, 27, 14, 0)),
+    ("FOMC_CUT", "Mar 2027", at_et(2027, 3, 17, 14, 0)),
+    ("FOMC_CUT", "Apr 2027", at_et(2027, 4, 28, 14, 0)),
+    ("FOMC_CUT", "Jun 2027", at_et(2027, 6, 9, 14, 0)),
+    ("FOMC_CUT", "Jul 2027", at_et(2027, 7, 28, 14, 0)),
+    ("FOMC_CUT", "Sep 2027", at_et(2027, 9, 15, 14, 0)),
+    ("FOMC_CUT", "Oct 2027", at_et(2027, 10, 27, 14, 0)),
+    ("FOMC_CUT", "Nov 2027", at_et(2027, 11, 17, 14, 0)),
 ]
 
 
@@ -188,7 +207,7 @@ def all_events() -> list[ReleaseEvent]:
 
 def upcoming(as_of: date | None = None, within_days: int = 60) -> list[ReleaseEvent]:
     """Releases that resolve between `as_of` and `as_of + within_days`."""
-    today = as_of or date.today()
+    today = as_of or datetime.now(ET).date()
     out = []
     for ev in all_events():
         days = (ev.resolve_dt.date() - today).days

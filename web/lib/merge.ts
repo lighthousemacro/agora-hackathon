@@ -28,6 +28,7 @@ function apply(market: Market, row: OnchainMarket): Market {
     market_address: row.address,
     resolved: row.resolved,
     resolve_time: row.resolveTime,
+    prices_live: true,
   };
 }
 
@@ -74,6 +75,7 @@ function fromChain(row: OnchainMarket): Market {
     market_address: row.address,
     resolved: row.resolved,
     resolve_time: row.resolveTime,
+    prices_live: true,
   };
 }
 
@@ -95,7 +97,7 @@ export function mergeBoard(board: Market[], chain: OnchainMarket[]): Market[] {
     const hit =
       (market.market_address && byAddress.get(market.market_address.toLowerCase())) ||
       byQuestion.get(normQuestion(market.question));
-    if (!hit) return { ...market, on_chain: false, framework_on_chain: false };
+    if (!hit) return { ...market, on_chain: false, framework_on_chain: false, prices_live: false };
     used.add(hit.address.toLowerCase());
     return apply(market, hit);
   });

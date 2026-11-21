@@ -16,6 +16,8 @@ import {
   type Address,
 } from "viem";
 
+export type { Address };
+
 export const ARC_RPC =
   process.env.NEXT_PUBLIC_PHAROS_RPC ||
   "https://rpc.testnet.arc-node.thecanteenapp.com/v1/swrm_dd08e7eb85888bfba093913d2cd9c3f89b5d9a0e7b93b31cb718d51bdd9f4486";
@@ -117,39 +119,36 @@ export async function getOutcomes(market: Address): Promise<{ yes: number; no: n
   return outcomeCache;
 }
 
-export async function fetchOnchainMarkets(): Promise<OnchainMarket[]> {
+export async function fetchOnchainMarkets(factory: Address = FACTORY): Promise<OnchainMarket[]> {
   const addrs = (await publicClient.readContract({
-    address: FACTORY,
+    address: factory,
     abi: FACTORY_ABI,
     functionName: "allMarkets",
   })) as Address[];
 
-  const rows = await Promise.all(
+  // A failed market read fails the poll. Dropping it and returning the rest
+  // would look like a complete, synced book.
+  return Promise.all(
     addrs.map(async (address) => {
-      try {
-        const [question, kind, snap, rt] = await Promise.all([
-          publicClient.readContract({ address, abi: MARKET_ABI, functionName: "question" }) as Promise<string>,
-          publicClient.readContract({ address, abi: MARKET_ABI, functionName: "resolverKind" }) as Promise<string>,
-          publicClient.readContract({ address, abi: MARKET_ABI, functionName: "snapshot" }) as Promise<readonly [number, number, bigint, bigint, bigint, boolean, number]>,
-          publicClient.readContract({ address, abi: MARKET_ABI, functionName: "resolveTime" }) as Promise<bigint>,
-        ]);
-        return {
-          address,
-          question,
-          kind,
-          crowdProb: Number(snap[0]) / 10000,
-          frameworkProb: Number(snap[1]) / 10000,
-          collateral: Number(snap[2]) / 1e6,
-          resolved: Boolean(snap[5]),
-          winner: Number(snap[6]),
-          resolveTime: Number(rt),
-        } as OnchainMarket;
-      } catch {
-        return null;
-      }
+      const [question, kind, snap, rt] = await Promise.all([
+        publicClient.readContract({ address, abi: MARKET_ABI, functionName: "question" }) as Promise<string>,
+        publicClient.readContract({ address, abi: MARKET_ABI, functionName: "resolverKind" }) as Promise<string>,
+        publicClient.readContract({ address, abi: MARKET_ABI, functionName: "snapshot" }) as Promise<readonly [number, number, bigint, bigint, bigint, boolean, number]>,
+        publicClient.readContract({ address, abi: MARKET_ABI, functionName: "resolveTime" }) as Promise<bigint>,
+      ]);
+      return {
+        address,
+        question,
+        kind,
+        crowdProb: Number(snap[0]) / 10000,
+        frameworkProb: Number(snap[1]) / 10000,
+        collateral: Number(snap[2]) / 1e6,
+        resolved: Boolean(snap[5]),
+        winner: Number(snap[6]),
+        resolveTime: Number(rt),
+      } as OnchainMarket;
     })
   );
-  return rows.filter((r): r is OnchainMarket => r !== null);
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");

@@ -15,14 +15,14 @@ export default function FlagshipSpread({ m }: { m: Market }) {
   const fw = m.framework_prob;
   const awaiting = releasePassed(m);
   const live = Boolean(m.on_chain && m.market_address);
-  const crowd = m.crowd_prob ?? 0.5; // seed price until the crowd trades
-  const edge = (fw - crowd) * 100;
-  const lo = Math.min(crowd, fw);
-  const hi = Math.max(crowd, fw);
+  const crowd = m.prices_live && live ? (m.crowd_prob ?? 0.5) : null;
+  const edge = crowd === null ? null : (fw - crowd) * 100;
 
-  const edgeCls = edge > 3 ? "pos" : edge < -3 ? "neg" : "flat";
+  const edgeCls = edge === null ? "flat" : edge > 3 ? "pos" : edge < -3 ? "neg" : "flat";
   const say =
-    edge > 3
+    edge === null
+      ? "the crowd price is waiting on a chain read"
+      : edge > 3
       ? "the framework reads YES as underpriced"
       : edge < -3
       ? "the framework reads YES as overpriced"
@@ -47,10 +47,15 @@ export default function FlagshipSpread({ m }: { m: Market }) {
 
       <div className="spread">
         <div className="spread-track">
-          <div
-            className="spread-fill"
-            style={{ left: `${clamp(lo * 100)}%`, width: `${Math.abs((hi - lo) * 100)}%` }}
-          />
+          {crowd !== null && (
+            <div
+              className="spread-fill"
+              style={{
+                left: `${clamp(Math.min(crowd, fw) * 100)}%`,
+                width: `${Math.abs((Math.max(crowd, fw) - Math.min(crowd, fw)) * 100)}%`,
+              }}
+            />
+          )}
         </div>
         <div className="spread-scale">
           {[0, 25, 50, 75, 100].map((t) => (
@@ -59,13 +64,15 @@ export default function FlagshipSpread({ m }: { m: Market }) {
             </span>
           ))}
         </div>
-        <div className="pin crowd" style={{ left: `${clamp(crowd * 100)}%` }}>
-          <div className="flag">
-            <div className="who">the crowd</div>
-            <div className="val">{pct(crowd)}</div>
+        {crowd !== null && (
+          <div className="pin crowd" style={{ left: `${clamp(crowd * 100)}%` }}>
+            <div className="flag">
+              <div className="who">the crowd</div>
+              <div className="val">{pct(crowd)}</div>
+            </div>
+            <div className="dot" />
           </div>
-          <div className="dot" />
-        </div>
+        )}
         <div className="pin fw" style={{ left: `${clamp(fw * 100)}%` }}>
           <div className="dot" />
           <div className="flag">
@@ -77,9 +84,15 @@ export default function FlagshipSpread({ m }: { m: Market }) {
 
       <div className="edge-readout">
         <span className={`edge-num ${edgeCls}`}>
-          {edge >= 0 ? "+" : ""}
-          {edge.toFixed(1)}
-          <span style={{ fontSize: "0.42em", marginLeft: "2px" }}>pp</span>
+          {edge === null ? (
+            pct(fw)
+          ) : (
+            <>
+              {edge >= 0 ? "+" : ""}
+              {edge.toFixed(1)}
+              <span style={{ fontSize: "0.42em", marginLeft: "2px" }}>pp</span>
+            </>
+          )}
         </span>
         <span className="edge-say">
           <b>{say}.</b> A whale can shove the crowd price. It cannot move the

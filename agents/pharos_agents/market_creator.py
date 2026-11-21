@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from web3 import Web3
@@ -98,7 +98,7 @@ def create_due(chain: Chain, lead_days: int = 14, within_days: int | None = None
     of the pass.
     """
     window = within_days if within_days is not None else max(lead_days, 60)
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     due = select_creates(now, chain.block_time(), lead_days, cal.upcoming(within_days=window))
     created = 0
     for ev in due:
