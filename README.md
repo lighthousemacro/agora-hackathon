@@ -90,6 +90,17 @@ the creator's residual. A failed pass retries on the next interval.
 already running. The site reads the factory every few seconds, so those
 updates show up without a rebuild.
 
+## Where this sits
+
+This repository is the public Pharos hackathon build. It is not the firm's daily system.
+
+| Repo | Role |
+| --- | --- |
+| [`lighthousemacro.github.io`](https://github.com/lighthousemacro/lighthousemacro.github.io) | Source for [lighthousemacro.com](https://lighthousemacro.com). This is the repo that changes on a publishing day. |
+| `LHM` (private) | Pipeline, Diagnostic Dozen, brand, and the working Pharos app under `Pharos/`. |
+| [`research-redirect`](https://github.com/lighthousemacro/research-redirect) | Redirect for [research.lighthousemacro.com](https://research.lighthousemacro.com). |
+| [`LighthouseMacro`](https://github.com/lighthousemacro/LighthouseMacro) | GitHub profile. Early notebooks live there. They are not this codebase. |
+
 ## Status
 
 See [`docs/ARCHITECTURE.md#build-status`](docs/ARCHITECTURE.md#build-status)
