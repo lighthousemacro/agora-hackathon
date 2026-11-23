@@ -48,6 +48,8 @@ export interface Market {
 
   // crowd price + on-chain enrichment (filled client-side from the Arc factory)
   crowd_prob?: number;
+  /** True only after a successful factory read. The seeded 50% is not a live crowd. */
+  prices_live?: boolean;
   market_address?: string;
   on_chain?: boolean;
   framework_on_chain?: boolean; // the framework prob is posted on the contract

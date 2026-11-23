@@ -3,7 +3,7 @@ ROOT  := $(shell pwd)
 PY    := $(shell [ -x $(ROOT)/.venv/bin/python3 ] && echo $(ROOT)/.venv/bin/python3 || echo python3)
 export PYTHONPATH := $(ROOT)/agents:$(ROOT)/pricing
 
-.PHONY: setup compile test price serve demo node deploy create reprice resolve status clean
+.PHONY: setup compile test price serve demo node deploy create reprice resolve sync once watch snapshot status clean
 
 setup:        ## install all deps + compile
 	bash scripts/setup.sh
@@ -37,6 +37,18 @@ reprice:      ## re-post framework prices on open markets
 
 resolve:      ## oracle agent: resolve due markets on official data
 	$(PY) -m pharos_agents.runner resolve
+
+sync:         ## one pass: create, reprice, resolve, settle
+	$(PY) -m pharos_agents.runner sync
+
+once:         ## alias of sync
+	$(PY) -m pharos_agents.runner once
+
+watch:        ## keep doing that pass, first one immediately
+	$(PY) -m pharos_agents.runner watch
+
+snapshot:     ## rebake web/lib/snapshot.ts from the pricing engine
+	PYTHONPATH=$(ROOT)/agents:$(ROOT)/pricing $(PY) scripts/gen_snapshot.py
 
 status:       ## print the market book (crowd vs framework)
 	$(PY) -m pharos_agents.runner status

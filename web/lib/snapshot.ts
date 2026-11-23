@@ -2,9 +2,10 @@ import type { Market } from "@/lib/types";
 
 // Framework snapshot captured 2026-05-22 from the live Lighthouse_Master.db,
 // merged with the live Arc testnet market addresses + seeded crowd price.
-// The static site renders from this; every market links to Arcscan so the
-// on-chain state (and any trades) is verifiable live. Re-bake by re-running
-// scripts/gen_snapshot (pricing engine on :6910) when the data moves.
+// The page hydrates crowd price, posted framework price, and resolution from
+// the factory every few seconds. This file is the model writeup and the
+// fallback when that read fails. Re-bake with `make snapshot`
+// (scripts/gen_snapshot.py) when the model itself moves.
 export const SNAPSHOT_AS_OF = "2026-05-22";
 export const FACTORY = "0xfA2D29c4bEd132009D029308810240863c1B3Cc9";
 export const ARCSCAN = "https://testnet.arcscan.app";

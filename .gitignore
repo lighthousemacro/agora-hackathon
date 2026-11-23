@@ -6,6 +6,7 @@ contracts/typechain-types/
 web/.next/
 web/node_modules/
 web/out/
+web/tsconfig.tsbuildinfo
 
 # Python
 __pycache__/
@@ -29,3 +30,4 @@ deployments/localhost.json
 # Logs
 *.log
 logs/
+.pharos-tx.lock

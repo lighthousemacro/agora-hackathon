@@ -72,6 +72,8 @@ make setup            # installs hardhat deps, python venv, web3, web deps
 make test             # solidity test suite (market lifecycle, solvency)
 make price            # sanity-check the pricing engine against the live DB
 make demo             # full end-to-end on a local chain (see below)
+make sync             # one pass: open due markets, reprice, resolve, settle
+make watch            # that same pass, immediately and then forever
 ```
 
 `make demo` runs the whole thing with **real framework prices from the live
@@ -79,6 +81,14 @@ database**: spins a local chain, deploys, the market-creator agent reads the
 2026 econ calendar and opens markets seeded at the LHM fair value, simulates
 trades that move the crowd price away from fair value, then the oracle agent
 resolves a market on a real historical print and pays the winners in USDC.
+
+`make watch` is the unattended loop. The first pass runs immediately: it opens
+any release already inside the lead window, reposts the framework price of
+*that* print when the quote moves, resolves on the chain clock, and returns
+the creator's residual. A failed pass retries on the next interval.
+`scripts/install_watch.sh` installs that loop as a user service so it is
+already running. The site reads the factory every few seconds, so those
+updates show up without a rebuild.
 
 ## Where this sits
 

@@ -6,6 +6,7 @@ signer from PHAROS_DEPLOYER_KEY, and exposes typed contract handles.
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -66,20 +67,31 @@ class Chain:
 
     # -- tx plumbing ------------------------------------------------------
     def send(self, fn, value: int = 0):
-        """Build, sign, send a contract function call; wait for the receipt."""
-        tx = fn.build_transaction(
-            {
-                "from": self.address,
-                "nonce": self.w3.eth.get_transaction_count(self.address),
-                "value": value,
-                "gas": 4_000_000,
-                "gasPrice": self.w3.eth.gas_price,
-                "chainId": self.w3.eth.chain_id,
-            }
-        )
-        signed = self.acct.sign_transaction(tx)
-        h = self.w3.eth.send_raw_transaction(signed.raw_transaction)
-        rcpt = self.w3.eth.wait_for_transaction_receipt(h, timeout=120)
+        """Build, sign, send a contract function call; wait for the receipt.
+
+        One lock per machine so two watch processes sharing this key cannot
+        both read the same nonce and drop a transaction.
+        """
+        lock_path = ROOT / ".pharos-tx.lock"
+        lock_path.touch(exist_ok=True)
+        with lock_path.open("a") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                tx = fn.build_transaction(
+                    {
+                        "from": self.address,
+                        "nonce": self.w3.eth.get_transaction_count(self.address, "pending"),
+                        "value": value,
+                        "gas": 4_000_000,
+                        "gasPrice": self.w3.eth.gas_price,
+                        "chainId": self.w3.eth.chain_id,
+                    }
+                )
+                signed = self.acct.sign_transaction(tx)
+                h = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                rcpt = self.w3.eth.wait_for_transaction_receipt(h, timeout=120)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
         if rcpt.status != 1:
             raise RuntimeError(f"tx reverted: {h.hex()}")
         return rcpt

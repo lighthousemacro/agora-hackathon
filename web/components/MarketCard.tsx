@@ -1,6 +1,7 @@
 import { Market } from "@/lib/types";
 import ChainCTA from "@/components/ChainCTA";
 import { pillarName, KIND_LABEL } from "@/lib/labels";
+import { releasePassed } from "@/lib/merge";
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const clamp = (x: number) => Math.max(5, Math.min(95, x));
@@ -29,10 +30,11 @@ export default function MarketCard({ m }: { m: Market }) {
   const tier = m.tier ?? "abstain";
   const claims = tier === "edge" || tier === "signal";
   const badge = BADGE[tier] ?? BADGE.abstain;
+  const awaiting = releasePassed(m);
 
   const fw = m.framework_prob;
   const live = Boolean(m.on_chain && m.market_address);
-  const crowd = live ? m.crowd_prob ?? 0.5 : null;
+  const crowd = m.prices_live && live ? (m.crowd_prob ?? 0.5) : null;
   const edge = crowd !== null ? (fw - crowd) * 100 : null;
   const lo = crowd !== null ? Math.min(crowd, fw) : fw;
   const hi = crowd !== null ? Math.max(crowd, fw) : fw;
@@ -57,6 +59,8 @@ export default function MarketCard({ m }: { m: Market }) {
         <span className="kind">{KIND_LABEL[m.kind] ?? m.kind}</span>
         {m.resolved ? (
           <span className="resolved-tag">RESOLVED</span>
+        ) : awaiting ? (
+          <span className="due-tag">AWAITING ORACLE</span>
         ) : (
           <span className={badge.cls}>{badge.label}</span>
         )}
